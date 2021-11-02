@@ -3,6 +3,7 @@ import torch.nn as nn
 
 
 class Encoder(nn.Module):
+    """fact encoder"""
     def __init__(self, input_size, embedding_size, hidden_size):
         super(Encoder, self).__init__()
 
@@ -29,6 +30,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
+    """question decoder with attention"""
     def __init__(self, input_size, embedding_size, hidden_size, output_size, num_layers=1, p=0.5):
         super(Decoder, self).__init__()
 
@@ -45,7 +47,7 @@ class Decoder(nn.Module):
         self.rnn = nn.GRU(hidden_size + embedding_size, hidden_size, num_layers)
 
         # input: context_vector + word_vector + hidden_state
-        self.output = nn.Linear(hidden_size*2 + embedding_size, output_size)
+        self.fc_vocab = nn.Linear(hidden_size*2 + embedding_size, output_size)
 
     def forward(self, x, fact_embedding, hidden):
         """
@@ -54,9 +56,10 @@ class Decoder(nn.Module):
         hidden: shape (1, N, hidden_size)
         """
         x = x.unsqueeze(0) # (1, N)
+        word_embedding = self.dropout(self.word_embedding(x)) # (1, N, embedding_size)
+
         fact_embedding = fact_embedding.unsqueeze(0) # (1, N, hidden_size*3)
 
-        word_embedding = self.dropout(self.word_embedding(x)) # (1, N, embedding_size)
         energy = self.energy(torch.cat((fact_embedding, hidden), dim=2)) # (1, N, 3)
         attention = self.sigmoid(energy).permute(1, 2, 0) # (N, 3, 1)
 
@@ -69,23 +72,41 @@ class Decoder(nn.Module):
 
         output, hidden = self.rnn(torch.cat((word_embedding, context_vector), dim=2), hidden)
 
-        return output, hidden
+        prediction = self.fc_vocab(output).squeeze(0) # (N, output_size)
+
+        return prediction, hidden
 
 class Triple2Seq(nn.Module):
+    """triple to sequence model"""
     def __init__(self, encoder, decoder):
         super(Triple2Seq, self).__init__()
-        
+
         self.encoder = encoder
         self.decoder = decoder
         
         # transform fact_embedding to same shape of hidden_state
-        self.fc = nn.Linear(self.encoder.hidden_size*3, self.decoder.hidden_size)
+        self.fc_transform = nn.Linear(self.encoder.hidden_size*3, self.decoder.hidden_size)
     
     def forward(self, triple, question, teacher_force_ratio=0.5):
         """
         triple: (s, r, o)
         question: (seq_length, N)
         """
-        pass
+        batch_size = question.shape[1]
+        seq_length = question.shape[0]
+        vocab_size = self.decoder.output_size
+        
+        predictions = torch.zeros(seq_length, batch_size, vocab_size)
 
+        fact_embedding = self.encoder(triple)
 
+        hidden = self.fc_transform(fact_embedding) # h_0
+
+        for t in range(1, seq_length):
+            prediction, hidden = self.decoder(x, fact_embedding, hidden)
+            predictions[t] = prediction
+
+            best_guess = prediction.argmax(1) # (N)
+            x = question[t] if random.random() < teacher_force_ratio else best_guess
+        
+        return predictions
