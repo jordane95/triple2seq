@@ -11,4 +11,3 @@ Reimplementation of Serban et al.'s paper "Generating Factoid Questions With Rec
 * data loader
 * word embedding loader
 * knowledge embedding loader
-* triple2seq model

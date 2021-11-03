@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import random
 
 
 class Encoder(nn.Module):
@@ -14,7 +15,7 @@ class Encoder(nn.Module):
     
     def forward(self, triple):
         """
-        triple:
+        triple: (s, r, o) where shape of s is (N)
         """
         s, r, o = triple
         x_s = self.knowledge_embedding(s) # shape (N, embedding_size)
@@ -35,6 +36,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
 
         self.hidden_size = hidden_size
+        self.output_size = output_size
         
         self.dropout = nn.Dropout(p)
         self.word_embedding = nn.Embedding(input_size, embedding_size)
@@ -64,7 +66,8 @@ class Decoder(nn.Module):
         attention = self.sigmoid(energy).permute(1, 2, 0) # (N, 3, 1)
 
         fact_embedding = fact_embedding.squeeze(0) # (N, hidden_size*3)
-        fact_s, fact_r, fact_o = torch.split(fact_embedding, 3, dim=1) # (N, hidden_size) for each
+
+        fact_s, fact_r, fact_o = torch.split(fact_embedding, self.hidden_size, dim=1) # (N, hidden_size) for each
         fact_embedding = torch.stack((fact_s, fact_r, fact_o), dim=2) # shape (N, hidden_size, 3)
 
         context_vector = torch.bmm(fact_embedding, attention) # (N, hidden_size, 1)
@@ -72,7 +75,7 @@ class Decoder(nn.Module):
 
         output, hidden = self.rnn(torch.cat((word_embedding, context_vector), dim=2), hidden)
 
-        prediction = self.fc_vocab(output).squeeze(0) # (N, output_size)
+        prediction = self.fc_vocab(torch.cat((output, word_embedding, context_vector), dim=2)).squeeze(0) # (N, output_size)
 
         return prediction, hidden
 
@@ -98,9 +101,10 @@ class Triple2Seq(nn.Module):
         
         predictions = torch.zeros(seq_length, batch_size, vocab_size)
 
+        x = question[0]
         fact_embedding = self.encoder(triple)
 
-        hidden = self.fc_transform(fact_embedding) # h_0
+        hidden = self.fc_transform(fact_embedding).unsqueeze(0) # h_0
 
         for t in range(1, seq_length):
             prediction, hidden = self.decoder(x, fact_embedding, hidden)
