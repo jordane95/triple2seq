@@ -1,6 +1,8 @@
 # Test file
 test.py
 
+data/glove.6B.50d.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
