@@ -4,9 +4,7 @@ Reimplementation of Serban et al.'s paper "Generating Factoid Questions With Rec
 ## Requirements
 
 * PyTorch
-* Pandas
 
 ## TODO
 
-* data loader
-* knowledge embedding loader
+* knowledge embedding linker
