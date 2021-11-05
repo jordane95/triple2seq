@@ -99,6 +99,18 @@ class GloVeLoader:
         return word_embeddings
 
 
+class TransELoader:
+    def __init__(self, entity_embedding_file='data/entity_transE_50d.pkl', relation_embedding_file='data/relation_transE_50d.pkl', embedding_size=50):
+        self.entity_embedding_file = entity_embedding_file
+        self.relation_embedding_file = relation_embedding_file
+        self.embedding_size = embedding_size
+    
+    def load_knowledge_embedding(self):
+        entity_embeddings = pickle.load(open(self.entity_embedding_file, "rb"))
+        relation_embeddings = pickle.load(open(self.relation_embedding_file, "rb"))
+        return entity_embeddings, relation_embeddings
+
+
 def get_data_loader(dataset=SimpleQuestionsDataSet(), batch_size=32, num_workers=8, shuffle=True, pin_memory=True):
     
     pad_idx = dataset.word_vocab.stoi["<PAD>"]

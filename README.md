@@ -7,4 +7,4 @@ Reimplementation of Serban et al.'s paper "Generating Factoid Questions With Rec
 
 ## TODO
 
-* knowledge embedding linker
+* model wrapper
