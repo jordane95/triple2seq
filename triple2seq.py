@@ -5,22 +5,35 @@ import random
 
 class Encoder(nn.Module):
     """fact encoder"""
-    def __init__(self, input_size, embedding_size, hidden_size):
+    def __init__(self, entity_vocab_size, relation_vocab_size, embedding_size, hidden_size, knowledge_embeddings=None):
+        """
+        entity_vocab_size: entity vocab size
+        relation_vocab_size: relation embedding size
+        embedding_size: knowledge embedding size
+        hidden_size: hidden size
+        knowledge_embeddings: pretrained knowledge embeddings, tuple of (entity_embeddings, relation_embeddings)
+        """
         super(Encoder, self).__init__()
 
         self.hidden_size = hidden_size
 
-        self.knowledge_embedding = nn.Embedding(input_size, embedding_size)
+        self.entity_embedding = nn.Embedding(entity_vocab_size, embedding_size)
+        self.relation_embedding = nn.Embedding(relation_vocab_size, embedding_size)
+        if knowledge_embeddings is not None:
+            entity_embeddings, relation_embeddings = knowledge_embeddings
+            self.entity_embedding = nn.Embedding.from_pretrained(entity_embeddings)
+            self.relation_embedding = nn.Embedding.from_pretrained(relation_embeddings)
         self.encoding = nn.Linear(embedding_size, hidden_size)
     
+
     def forward(self, triple):
         """
-        triple: (s, r, o) where shape of s is (N)
+        triple: list of [s, r, o], where shape of s, r, o is (N)
         """
         s, r, o = triple
-        x_s = self.knowledge_embedding(s) # shape (N, embedding_size)
-        x_r = self.knowledge_embedding(r)
-        x_o = self.knowledge_embedding(o)
+        x_s = self.entity_embedding(s) # shape (N, embedding_size)
+        x_r = self.relation_embedding(r)
+        x_o = self.entity_embedding(o)
 
         encoding_s = self.encoding(x_s) # shape (N, hidden_size)
         encoding_r = self.encoding(x_r)
@@ -32,7 +45,16 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     """question decoder with attention"""
-    def __init__(self, input_size, embedding_size, hidden_size, output_size, num_layers=1, p=0.5):
+    def __init__(self, input_size, embedding_size, hidden_size, output_size, num_layers=1, p=0.5, word_embeddings=None):
+        """
+        input_size: word vocab size
+        embedding_size: word embedding size
+        hidden_size: hidden state size
+        output_size: word vocab size
+        num_layers: number of rnn layers
+        p: dropout probability
+        word_embeddings: pretrained word embeddings
+        """
         super(Decoder, self).__init__()
 
         self.hidden_size = hidden_size
@@ -40,6 +62,8 @@ class Decoder(nn.Module):
         
         self.dropout = nn.Dropout(p)
         self.word_embedding = nn.Embedding(input_size, embedding_size)
+        if word_embeddings is not None:
+            self.word_embedding = nn.Embedding.from_pretrained(word_embeddings)
 
         # fact_embedding + previous hidden state
         self.energy = nn.Linear(hidden_size*4, 3)
@@ -50,6 +74,7 @@ class Decoder(nn.Module):
 
         # input: context_vector + word_vector + hidden_state
         self.fc_vocab = nn.Linear(hidden_size*2 + embedding_size, output_size)
+    
 
     def forward(self, x, fact_embedding, hidden):
         """
@@ -79,6 +104,7 @@ class Decoder(nn.Module):
 
         return prediction, hidden
 
+
 class Triple2Seq(nn.Module):
     """triple to sequence model"""
     def __init__(self, encoder, decoder):
@@ -90,10 +116,13 @@ class Triple2Seq(nn.Module):
         # transform fact_embedding to same shape of hidden_state
         self.fc_transform = nn.Linear(self.encoder.hidden_size*3, self.decoder.hidden_size)
     
+
     def forward(self, triple, question, teacher_force_ratio=0.5):
         """
-        triple: (s, r, o)
-        question: (seq_length, N)
+        triple: list of [s, r, o], where each tensor is of shape (N)
+        question: shape (seq_length, N)
+        return:
+            predictions: shape (seq_length, batch_size, vocab_size)
         """
         batch_size = question.shape[1]
         seq_length = question.shape[0]

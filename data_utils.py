@@ -67,7 +67,7 @@ class MyCollate:
 
 
 class GloVeLoader:
-    def __init__(self, data_path, word_dim):
+    def __init__(self, data_path='data/golve.6B.50d.txt', word_dim=50):
         self.data_path = data_path
         self.word_dim = word_dim
     
@@ -96,7 +96,7 @@ class GloVeLoader:
             vec = word_vec.get(vocab.itos[i])
             if vec is not None:
                 word_embeddings[i] = vec
-        return word_embeddings
+        return torch.tensor(word_embeddings)
 
 
 class TransELoader:
@@ -108,7 +108,7 @@ class TransELoader:
     def load_knowledge_embedding(self):
         entity_embeddings = pickle.load(open(self.entity_embedding_file, "rb"))
         relation_embeddings = pickle.load(open(self.relation_embedding_file, "rb"))
-        return entity_embeddings, relation_embeddings
+        return torch.tensor(entity_embeddings), torch.tensor(relation_embeddings)
 
 
 def get_data_loader(dataset=SimpleQuestionsDataSet(), batch_size=32, num_workers=8, shuffle=True, pin_memory=True):
